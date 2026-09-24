@@ -1,0 +1,169 @@
+<svg xmlns="http://www.w3.org/2000/svg" id="dspark-race-visual" class="diagram" viewBox="0 0 1040 860" role="img" aria-labelledby="race-title race-desc">
+<style>
+    #dspark-race-visual {
+      width: 100%;
+      color: #172033;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    #dspark-race-visual .diagram {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+    #dspark-race-visual text {
+      fill: #172033;
+      font-weight: 400;
+    }
+    #dspark-race-visual .title,
+    #dspark-race-visual .panel-title,
+    #dspark-race-visual .strong {
+      font-weight: 500;
+    }
+    #dspark-race-visual .muted { fill: #667085; }
+    #dspark-race-visual .lane { stroke: #cbd5e1; stroke-width: 1; }
+    #dspark-race-visual .divider { stroke: #cbd5e1; stroke-width: 1.5; }
+    #dspark-race-visual .compute { fill: #2563eb; fill-opacity: .20; stroke: #2563eb; stroke-width: 1.5; }
+    #dspark-race-visual .copy { fill: #f59e0b; fill-opacity: .22; stroke: #f59e0b; stroke-width: 1.5; }
+    #dspark-race-visual .cpu { fill: #7c3aed; fill-opacity: .18; stroke: #7c3aed; stroke-width: 1.5; }
+    #dspark-race-visual .wait { fill: #eef2f6; stroke: #667085; stroke-width: 1.5; stroke-dasharray: 5 4; }
+    #dspark-race-visual .danger { fill: #dc2626; }
+    #dspark-race-visual .success { fill: #16a34a; }
+    #dspark-race-visual .danger-line { stroke: #dc2626; stroke-width: 3; stroke-dasharray: 7 5; }
+    #dspark-race-visual .success-line { stroke: #16a34a; stroke-width: 3; }
+    #dspark-race-visual .control-line { stroke: #7c3aed; stroke-width: 2; }
+    #dspark-race-visual .thin-arrow { stroke: #667085; stroke-width: 1.5; }
+    #dspark-race-visual .event { fill: #16a34a; stroke: #16a34a; stroke-width: 2; }
+    #dspark-race-visual .copydone { fill: #7c3aed; stroke: #7c3aed; stroke-width: 2; }
+    #dspark-race-visual .note-danger { fill: #dc2626; font-weight: 500; }
+    #dspark-race-visual .note-success { fill: #16a34a; font-weight: 500; }
+    #dspark-race-visual .section-tint-red { fill: #dc2626; fill-opacity: .035; }
+    #dspark-race-visual .section-tint-green { fill: #16a34a; fill-opacity: .035; }
+  </style>
+    <title id="race-title">DSpark persistent result buffer race and its event-based fix</title>
+    <desc id="race-desc">A two-panel timeline. The baseline shows a copy stream reading a persistent result buffer while the next target CUDA graph overwrites the same buffer. The fixed timeline records a dedicated event after the result copy and makes the next target replay wait for it, while preserving draft overlap. The CPU still waits on the broader copy-done event before consuming host data.</desc>
+
+    <defs>
+      <marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#dc2626"></path>
+      </marker>
+      <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#16a34a"></path>
+      </marker>
+      <marker id="arrow-purple" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#7c3aed"></path>
+      </marker>
+      <marker id="arrow-muted" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#667085"></path>
+      </marker>
+    </defs>
+
+    <text class="title" x="28" y="36" font-size="23">DSpark persistent result buffer: baseline race and fix</text>
+    <text class="muted" x="28" y="61" font-size="13">Qualitative timeline — not to scale.  P = CUDA-Graph-owned persistent result buffer.</text>
+
+    <rect class="section-tint-red" x="18" y="82" width="1004" height="326" rx="12"></rect>
+    <text class="panel-title" x="34" y="112" font-size="18">Baseline — CPU waits, but GPU buffer reuse is not protected</text>
+    <text class="muted" x="994" y="112" font-size="12" text-anchor="end">time →</text>
+
+    <text x="34" y="157" font-size="13">forward_stream</text>
+    <line class="lane" x1="170" y1="153" x2="994" y2="153"></line>
+    <rect class="compute" x="184" y="135" width="168" height="36" rx="6"></rect>
+    <text x="268" y="150" font-size="12" text-anchor="middle">Step N target verify</text>
+    <text class="strong" x="268" y="164" font-size="12" text-anchor="middle">graph tail: WRITE P</text>
+    <rect class="compute" x="414" y="135" width="152" height="36" rx="6"></rect>
+    <text x="490" y="157" font-size="12" text-anchor="middle">Step N+1 draft</text>
+    <rect class="compute" x="594" y="135" width="344" height="36" rx="6"></rect>
+    <text x="740" y="157" font-size="12" text-anchor="middle">Step N+1 target verify</text>
+    <rect x="850" y="135" width="88" height="36" rx="6" fill="#dc2626" fill-opacity=".28" stroke="#dc2626" stroke-width="2"></rect>
+    <text class="note-danger" x="894" y="150" font-size="11" text-anchor="middle">WRITE P</text>
+    <text class="note-danger" x="894" y="163" font-size="10" text-anchor="middle">again</text>
+
+    <text x="34" y="221" font-size="13">copy_stream</text>
+    <line class="lane" x1="170" y1="217" x2="994" y2="217"></line>
+    <rect class="copy" x="360" y="199" width="554" height="36" rx="6"></rect>
+    <text x="637" y="221" font-size="12" text-anchor="middle">D2H READ P  →  pinned host buffer</text>
+    <line class="thin-arrow" x1="352" y1="171" x2="380" y2="198" marker-end="url(#arrow-muted)"></line>
+    <text class="muted" x="371" y="188" font-size="10">wait for Step N</text>
+
+    <line class="danger-line" x1="878" y1="126" x2="878" y2="244"></line>
+    <line class="danger-line" x1="864" y1="190" x2="892" y2="244"></line>
+    <line class="danger-line" x1="892" y1="190" x2="864" y2="244"></line>
+    <text class="note-danger" x="878" y="265" font-size="13" text-anchor="middle">RACE: read and overwrite the same address</text>
+
+    <text x="34" y="311" font-size="13">CPU consumer</text>
+    <line class="lane" x1="170" y1="307" x2="994" y2="307"></line>
+    <rect class="wait" x="568" y="289" width="346" height="36" rx="6"></rect>
+    <text x="741" y="311" font-size="12" text-anchor="middle">wait(copy_done)</text>
+    <rect class="cpu" x="928" y="289" width="66" height="36" rx="6"></rect>
+    <text x="961" y="304" font-size="10" text-anchor="middle">consume</text>
+    <text x="961" y="317" font-size="10" text-anchor="middle">host data</text>
+    <line class="control-line" x1="914" y1="235" x2="914" y2="288" marker-end="url(#arrow-purple)"></line>
+    <text class="muted" x="920" y="274" font-size="10">copy_done</text>
+
+    <line class="danger-line" x1="570" y1="348" x2="780" y2="348" marker-end="url(#arrow-red)"></line>
+    <text class="note-danger" x="675" y="342" font-size="12" text-anchor="middle">Missing edge</text>
+    <text x="675" y="368" font-size="12" text-anchor="middle">D2H complete  →  next graph may overwrite P</text>
+    <text class="muted" x="675" y="389" font-size="11" text-anchor="middle">The later CPU wait cannot repair an earlier GPU read/write race.</text>
+
+    <line class="divider" x1="28" y1="430" x2="1012" y2="430"></line>
+
+    <rect class="section-tint-green" x="18" y="450" width="1004" height="326" rx="12"></rect>
+    <text class="panel-title" x="34" y="480" font-size="18">Fixed — dedicated result-copy event protects reuse</text>
+    <text class="muted" x="994" y="480" font-size="12" text-anchor="end">time →</text>
+
+    <text x="34" y="525" font-size="13">forward_stream</text>
+    <line class="lane" x1="170" y1="521" x2="994" y2="521"></line>
+    <rect class="compute" x="184" y="503" width="168" height="36" rx="6"></rect>
+    <text x="268" y="518" font-size="12" text-anchor="middle">Step N target verify</text>
+    <text class="strong" x="268" y="532" font-size="12" text-anchor="middle">graph tail: WRITE P</text>
+    <rect class="compute" x="414" y="503" width="152" height="36" rx="6"></rect>
+    <text x="490" y="525" font-size="12" text-anchor="middle">Step N+1 draft</text>
+    <rect class="wait" x="588" y="503" width="118" height="36" rx="6"></rect>
+    <text x="647" y="518" font-size="11" text-anchor="middle">wait_event(E)</text>
+    <text class="muted" x="647" y="532" font-size="10" text-anchor="middle">device-side</text>
+    <rect class="compute" x="730" y="503" width="208" height="36" rx="6"></rect>
+    <text x="818" y="525" font-size="12" text-anchor="middle">Step N+1 target verify</text>
+    <rect x="850" y="503" width="88" height="36" rx="6" fill="#16a34a" fill-opacity=".22" stroke="#16a34a" stroke-width="2"></rect>
+    <text class="note-success" x="894" y="518" font-size="11" text-anchor="middle">WRITE P</text>
+    <text class="note-success" x="894" y="531" font-size="10" text-anchor="middle">now safe</text>
+
+    <text x="34" y="589" font-size="13">copy_stream</text>
+    <line class="lane" x1="170" y1="585" x2="994" y2="585"></line>
+    <rect class="copy" x="360" y="567" width="318" height="36" rx="6"></rect>
+    <text x="519" y="589" font-size="12" text-anchor="middle">small result D2H: token + accept length</text>
+    <line class="event" x1="690" y1="558" x2="690" y2="612"></line>
+    <circle class="event" cx="690" cy="585" r="5"></circle>
+    <text class="note-success" x="690" y="625" font-size="11" text-anchor="middle">record E</text>
+    <rect class="copy" x="710" y="567" width="204" height="36" rx="6" opacity=".58"></rect>
+    <text class="muted" x="812" y="589" font-size="11" text-anchor="middle">optional D2H continues</text>
+    <line class="success-line" x1="690" y1="558" x2="647" y2="540" marker-end="url(#arrow-green)"></line>
+    <text class="note-success" x="708" y="548" font-size="10">reuse dependency</text>
+
+    <text x="34" y="679" font-size="13">CPU consumer</text>
+    <line class="lane" x1="170" y1="675" x2="994" y2="675"></line>
+    <rect class="wait" x="568" y="657" width="346" height="36" rx="6"></rect>
+    <text x="741" y="679" font-size="12" text-anchor="middle">wait(copy_done) — unchanged</text>
+    <rect class="cpu" x="928" y="657" width="66" height="36" rx="6"></rect>
+    <text x="961" y="672" font-size="10" text-anchor="middle">consume</text>
+    <text x="961" y="685" font-size="10" text-anchor="middle">host data</text>
+    <line class="copydone" x1="914" y1="603" x2="914" y2="656" marker-end="url(#arrow-purple)"></line>
+    <text class="muted" x="920" y="642" font-size="10">copy_done</text>
+
+    <line class="success-line" x1="512" y1="716" x2="838" y2="716" marker-end="url(#arrow-green)"></line>
+    <text class="note-success" x="675" y="710" font-size="12" text-anchor="middle">New safe reuse edge</text>
+    <text x="675" y="736" font-size="12" text-anchor="middle">D2H complete  →  event E  →  next target replay may overwrite P</text>
+    <text class="muted" x="675" y="757" font-size="11" text-anchor="middle">The next draft remains overlapped; only target verify is gated.</text>
+
+    <g transform="translate(36, 810)">
+      <rect class="compute" x="0" y="-12" width="26" height="14" rx="3"></rect>
+      <text x="34" y="0" font-size="11">GPU compute</text>
+      <rect class="copy" x="142" y="-12" width="26" height="14" rx="3"></rect>
+      <text x="176" y="0" font-size="11">D2H copy</text>
+      <line class="danger-line" x1="278" y1="-5" x2="312" y2="-5"></line>
+      <text x="320" y="0" font-size="11">missing / unsafe edge</text>
+      <line class="success-line" x1="482" y1="-5" x2="516" y2="-5"></line>
+      <text x="524" y="0" font-size="11">dedicated reuse event</text>
+      <line class="control-line" x1="706" y1="-5" x2="740" y2="-5"></line>
+      <text x="748" y="0" font-size="11">CPU copy_done wait</text>
+    </g>
+    <text class="muted" x="36" y="843" font-size="11">Key point: waiting before CPU consumption and protecting the GPU source from early overwrite are two different dependencies.</text>
+  </svg>
